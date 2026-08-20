@@ -635,8 +635,6 @@ pub struct DisputeCancelledEvent {
     pub timestamp: u64,
 }
 
-
-
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
@@ -769,9 +767,11 @@ impl ProgramEscrowContract {
 
     /// Bump the TTL for single-program persistent storage keys
     fn bump_persistent_symbol_ttl(env: &Env, key: &Symbol) {
-        env.storage()
-            .persistent()
-            .extend_ttl(key, PERSISTENT_TTL_THRESHOLD, PERSISTENT_TTL_EXTEND_TO);
+        env.storage().persistent().extend_ttl(
+            key,
+            PERSISTENT_TTL_THRESHOLD,
+            PERSISTENT_TTL_EXTEND_TO,
+        );
     }
 
     /// Bump the TTL for the contract instance storage
@@ -780,7 +780,6 @@ impl ProgramEscrowContract {
             .instance()
             .extend_ttl(PERSISTENT_TTL_THRESHOLD, PERSISTENT_TTL_EXTEND_TO);
     }
-
 
     /// Load the complete schedule vector for internal mutation and lookup paths.
     ///
@@ -868,7 +867,8 @@ impl ProgramEscrowContract {
         recipient: &Address,
         amount: i128,
     ) {
-        let threshold = monitoring::get_large_payout_threshold_amount(env, program_data.total_funds);
+        let threshold =
+            monitoring::get_large_payout_threshold_amount(env, program_data.total_funds);
         if amount >= threshold {
             env.events().publish(
                 (LARGE_PAYOUT,),
@@ -910,7 +910,7 @@ impl ProgramEscrowContract {
         let start = env.ledger().timestamp();
         let caller_addr = from.clone();
         from.require_auth();
-        
+
         if Self::check_paused(&env, symbol_short!("lock")) {
             monitoring::track_operation(&env, symbol_short!("lock"), caller_addr.clone(), false);
             panic!("Funds Paused");
@@ -939,32 +939,49 @@ impl ProgramEscrowContract {
         Self::bump_persistent_symbol_ttl(&env, &PROGRAM_DATA);
 
         // Check fund caps if configured
-        let cap_config: FundCapConfig = env
-            .storage()
-            .instance()
-            .get(&FUND_CAP_CONFIG)
-            .unwrap_or(FundCapConfig {
-                max_total_funds: None,
-                max_single_lock: None,
-            });
+        let cap_config: FundCapConfig =
+            env.storage()
+                .instance()
+                .get(&FUND_CAP_CONFIG)
+                .unwrap_or(FundCapConfig {
+                    max_total_funds: None,
+                    max_single_lock: None,
+                });
 
         // Per-lock cap check
         if let Some(max_single) = cap_config.max_single_lock {
             if amount > max_single {
-                monitoring::track_operation(&env, symbol_short!("lock"), caller_addr.clone(), false);
+                monitoring::track_operation(
+                    &env,
+                    symbol_short!("lock"),
+                    caller_addr.clone(),
+                    false,
+                );
                 panic!("Amount exceeds per-lock maximum");
             }
         }
 
         // Total-funds cap check
         if let Some(max_total) = cap_config.max_total_funds {
-            let new_total = program_data.total_funds.checked_add(amount)
+            let new_total = program_data
+                .total_funds
+                .checked_add(amount)
                 .unwrap_or_else(|| {
-                    monitoring::track_operation(&env, symbol_short!("lock"), caller_addr.clone(), false);
+                    monitoring::track_operation(
+                        &env,
+                        symbol_short!("lock"),
+                        caller_addr.clone(),
+                        false,
+                    );
                     panic!("Total funds overflow");
                 });
             if new_total > max_total {
-                monitoring::track_operation(&env, symbol_short!("lock"), caller_addr.clone(), false);
+                monitoring::track_operation(
+                    &env,
+                    symbol_short!("lock"),
+                    caller_addr.clone(),
+                    false,
+                );
                 panic!("Total funds cap exceeded");
             }
         }
@@ -974,8 +991,14 @@ impl ProgramEscrowContract {
         token_client.transfer(&from, &env.current_contract_address(), &amount);
 
         // Update balances
-        program_data.total_funds = program_data.total_funds.checked_add(amount).expect("Total funds overflow");
-        program_data.remaining_balance = program_data.remaining_balance.checked_add(amount).expect("Remaining balance overflow");
+        program_data.total_funds = program_data
+            .total_funds
+            .checked_add(amount)
+            .expect("Total funds overflow");
+        program_data.remaining_balance = program_data
+            .remaining_balance
+            .checked_add(amount)
+            .expect("Remaining balance overflow");
 
         // Ensure invariant
         let contract_balance = token_client.balance(&env.current_contract_address());
@@ -1070,7 +1093,9 @@ impl ProgramEscrowContract {
             .get(&DataKey::Admin)
             .expect("admin not initialized");
         current.require_auth();
-        env.storage().instance().set(&DataKey::PendingAdmin, &new_admin);
+        env.storage()
+            .instance()
+            .set(&DataKey::PendingAdmin, &new_admin);
         Self::bump_instance_ttl(&env);
     }
 
@@ -1097,7 +1122,9 @@ impl ProgramEscrowContract {
     /// Get the current admin
     pub fn getadmin(env: Env) -> Option<Address> {
         let admin = env.storage().instance().get(&DataKey::Admin);
-        if admin.is_some() { Self::bump_instance_ttl(&env); }
+        if admin.is_some() {
+            Self::bump_instance_ttl(&env);
+        }
         admin
     }
 
@@ -1174,7 +1201,8 @@ impl ProgramEscrowContract {
             return Err(Error::UpgradeNotApproved);
         }
 
-        env.deployer().update_current_contract_wasm(new_wasm_hash.clone());
+        env.deployer()
+            .update_current_contract_wasm(new_wasm_hash.clone());
 
         env.events().publish(
             (UPGRADE_EXECUTED,),
@@ -1487,25 +1515,33 @@ impl ProgramEscrowContract {
     /// Returns the current dispute record, if any.
     pub fn get_dispute(env: Env) -> Option<DisputeRecord> {
         let dispute = env.storage().instance().get(&DataKey::Dispute);
-        if dispute.is_some() { Self::bump_instance_ttl(&env); }
+        if dispute.is_some() {
+            Self::bump_instance_ttl(&env);
+        }
         dispute
     }
 
     /// Returns the current recipient-scoped dispute record, if any.
     pub fn get_recipient_dispute(env: Env, recipient: Address) -> Option<DisputeRecord> {
-        let record = env.storage()
+        let record = env
+            .storage()
             .instance()
             .get(&DataKey::RecipientDispute(recipient));
-        if record.is_some() { Self::bump_instance_ttl(&env); }
+        if record.is_some() {
+            Self::bump_instance_ttl(&env);
+        }
         record
     }
 
     /// Returns the current schedule-scoped dispute record, if any.
     pub fn get_schedule_dispute(env: Env, schedule_id: u64) -> Option<DisputeRecord> {
-        let record = env.storage()
+        let record = env
+            .storage()
             .instance()
             .get(&DataKey::ScheduleDispute(schedule_id));
-        if record.is_some() { Self::bump_instance_ttl(&env); }
+        if record.is_some() {
+            Self::bump_instance_ttl(&env);
+        }
         record
     }
 
@@ -1554,7 +1590,9 @@ impl ProgramEscrowContract {
 
     pub fn reset_circuit_breaker(env: Env, caller: Address) {
         caller.require_auth();
-        let admin = error_recovery::get_circuitadmin(&env).expect("Circuit admin not set");
+        let admin = error_recovery::get_circuitadmin(&env).expect(
+            "Unauthorized: circuit admin not set; only circuit admin can reset circuit breaker",
+        );
         if caller != admin {
             panic!("Unauthorized: only circuit admin can reset");
         }
@@ -1582,7 +1620,9 @@ impl ProgramEscrowContract {
             panic!("failure_threshold must be greater than zero");
         }
         caller.require_auth();
-        let admin = error_recovery::get_circuitadmin(&env).expect("Circuit admin not set");
+        let admin = error_recovery::get_circuitadmin(&env).expect(
+            "Unauthorized: circuit admin not set; only circuit admin can configure circuit breaker",
+        );
         if caller != admin {
             panic!("Unauthorized: only circuit admin can configure");
         }
@@ -1621,7 +1661,8 @@ impl ProgramEscrowContract {
     /// * If caller is not the registered circuit breaker admin.
     pub fn emergency_open_circuit(env: Env, caller: Address) {
         caller.require_auth();
-        let admin = error_recovery::get_circuitadmin(&env).expect("Circuit admin not set");
+        let admin = error_recovery::get_circuitadmin(&env)
+            .expect("Unauthorized: circuit admin not set; only circuit admin can open circuit");
         if caller != admin {
             panic!("Unauthorized: only circuit admin can open circuit");
         }
@@ -1698,9 +1739,7 @@ impl ProgramEscrowContract {
             max_total_funds,
             max_single_lock,
         };
-        env.storage()
-            .instance()
-            .set(&FUND_CAP_CONFIG, &config);
+        env.storage().instance().set(&FUND_CAP_CONFIG, &config);
         Ok(())
     }
 
@@ -1764,9 +1803,7 @@ impl ProgramEscrowContract {
         // Emit whitelist enforcement changed event
         env.events().publish(
             (WHITELIST_ENFORCEMENT_CHANGED,),
-            WhitelistEnforcementChangedEvent {
-                enabled,
-            },
+            WhitelistEnforcementChangedEvent { enabled },
         );
     }
 
@@ -1918,14 +1955,14 @@ impl ProgramEscrowContract {
         Self::check_governance_requirements(&env)
             .unwrap_or_else(|_| panic!("{:?}", Error::GovernanceVersionTooLow));
 
-        let mut program_data: ProgramData =
-            env.storage()
-                .persistent()
-                .get(&PROGRAM_DATA)
-                .unwrap_or_else(|| {
-                    reentrancy_guard::clear_entered(&env);
-                    panic!("Program not initialized")
-                });
+        let mut program_data: ProgramData = env
+            .storage()
+            .persistent()
+            .get(&PROGRAM_DATA)
+            .unwrap_or_else(|| {
+                reentrancy_guard::clear_entered(&env);
+                panic!("Program not initialized")
+            });
         Self::bump_persistent_symbol_ttl(&env, &PROGRAM_DATA);
 
         program_data.authorized_payout_key.require_auth();
@@ -2137,14 +2174,14 @@ impl ProgramEscrowContract {
             .unwrap_or_else(|_| panic!("{:?}", Error::GovernanceVersionTooLow));
 
         // Verify authorization
-        let program_data: ProgramData =
-            env.storage()
-                .persistent()
-                .get(&PROGRAM_DATA)
-                .unwrap_or_else(|| {
-                    reentrancy_guard::clear_entered(&env);
-                    panic!("Program not initialized")
-                });
+        let program_data: ProgramData = env
+            .storage()
+            .persistent()
+            .get(&PROGRAM_DATA)
+            .unwrap_or_else(|| {
+                reentrancy_guard::clear_entered(&env);
+                panic!("Program not initialized")
+            });
         Self::bump_persistent_symbol_ttl(&env, &PROGRAM_DATA);
 
         program_data.authorized_payout_key.require_auth();
@@ -2254,7 +2291,8 @@ impl ProgramEscrowContract {
     /// # Returns
     /// ProgramData containing all program information
     pub fn get_program_info(env: Env) -> ProgramData {
-        let val = env.storage()
+        let val = env
+            .storage()
             .persistent()
             .get(&PROGRAM_DATA)
             .unwrap_or_else(|| panic!("Program not initialized"));
@@ -2510,7 +2548,8 @@ impl ProgramEscrowContract {
     }
 
     pub fn get_program_release_history(env: Env) -> Vec<ProgramReleaseHistory> {
-        let val = env.storage()
+        let val = env
+            .storage()
             .persistent()
             .get(&RELEASE_HISTORY)
             .unwrap_or_else(|| Vec::new(&env));
@@ -2842,11 +2881,7 @@ impl ProgramEscrowContract {
     ///
     /// `offset` counts matching, unreleased schedules rather than raw storage
     /// positions.
-    pub fn get_pending_schedules(
-        env: Env,
-        offset: u32,
-        limit: u32,
-    ) -> Vec<ProgramReleaseSchedule> {
+    pub fn get_pending_schedules(env: Env, offset: u32, limit: u32) -> Vec<ProgramReleaseSchedule> {
         let schedules = Self::load_program_release_schedules(&env);
         let limit = limit.min(MAX_QUERY_LIMIT);
         let mut results = Vec::new(&env);
@@ -2880,11 +2915,7 @@ impl ProgramEscrowContract {
     /// Get a capped page of due, unreleased schedules.
     ///
     /// `offset` counts matching due schedules rather than raw storage positions.
-    pub fn get_due_schedules(
-        env: Env,
-        offset: u32,
-        limit: u32,
-    ) -> Vec<ProgramReleaseSchedule> {
+    pub fn get_due_schedules(env: Env, offset: u32, limit: u32) -> Vec<ProgramReleaseSchedule> {
         let schedules = Self::load_program_release_schedules(&env);
         let limit = limit.min(MAX_QUERY_LIMIT);
         let now = env.ledger().timestamp();
