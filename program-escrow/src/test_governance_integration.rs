@@ -1,4 +1,4 @@
-﻿#![cfg(test)]
+#![cfg(test)]
 
 use crate::{governance_integration, Error, ProgramEscrowContract, ProgramEscrowContractClient};
 use soroban_sdk::{testutils::Address as _, Address, BytesN, Env, String};
@@ -556,8 +556,7 @@ fn test_vetoed_proposal_blocks_upgrade_approval() {
     client.setadmin(&admin);
 
     let gov_contract_id = env.register_contract(None, mock_governance::MockGovernanceContract);
-    let gov_client =
-        mock_governance::MockGovernanceContractClient::new(&env, &gov_contract_id);
+    let gov_client = mock_governance::MockGovernanceContractClient::new(&env, &gov_contract_id);
 
     client.set_governance_contract(&gov_contract_id);
     client.set_min_governance_version(&2);
@@ -598,8 +597,7 @@ fn test_non_vetoed_proposal_is_not_blocked() {
     client.setadmin(&admin);
 
     let gov_contract_id = env.register_contract(None, mock_governance::MockGovernanceContract);
-    let gov_client =
-        mock_governance::MockGovernanceContractClient::new(&env, &gov_contract_id);
+    let gov_client = mock_governance::MockGovernanceContractClient::new(&env, &gov_contract_id);
 
     client.set_governance_contract(&gov_contract_id);
     client.set_min_governance_version(&2);
@@ -644,8 +642,7 @@ fn test_resources_accessible_after_proposal_veto() {
     client.setadmin(&admin);
 
     let gov_contract_id = env.register_contract(None, mock_governance::MockGovernanceContract);
-    let gov_client =
-        mock_governance::MockGovernanceContractClient::new(&env, &gov_contract_id);
+    let gov_client = mock_governance::MockGovernanceContractClient::new(&env, &gov_contract_id);
 
     client.set_governance_contract(&gov_contract_id);
     client.set_min_governance_version(&2);
@@ -678,8 +675,7 @@ fn test_veto_after_execution_does_not_retroactively_revoke_approval() {
     client.setadmin(&admin);
 
     let gov_contract_id = env.register_contract(None, mock_governance::MockGovernanceContract);
-    let gov_client =
-        mock_governance::MockGovernanceContractClient::new(&env, &gov_contract_id);
+    let gov_client = mock_governance::MockGovernanceContractClient::new(&env, &gov_contract_id);
 
     client.set_governance_contract(&gov_contract_id);
     client.set_min_governance_version(&2);
@@ -716,7 +712,10 @@ fn test_veto_after_execution_does_not_retroactively_revoke_approval() {
             !approved || vetoed,
             "combined guard (approved && !vetoed) must block the late-veto case"
         );
-        assert!(vetoed, "vetoed must be true to block the late-veto scenario");
+        assert!(
+            vetoed,
+            "vetoed must be true to block the late-veto scenario"
+        );
     });
 }
 

@@ -146,7 +146,7 @@ mod test {
 
     #[soroban_sdk::contract]
     struct MockGov;
-    
+
     #[soroban_sdk::contractimpl]
     impl MockGov {
         pub fn get_ver(_env: Env) -> u32 {
@@ -169,7 +169,7 @@ mod test {
         let env = Env::default();
         let contract_id = env.register_contract(None, MockGov);
         let dummy_gov = Address::generate(&env);
-        
+
         env.as_contract(&contract_id, || {
             set_governance_contract(&env, dummy_gov);
             // Configured but min_version is 0 (default) - should default-allow
@@ -184,20 +184,20 @@ mod test {
         let env = Env::default();
         let contract_id = env.register_contract(None, MockGov);
         let gov_id = env.register_contract(None, MockGov); // A separate contract as the governance contract
-        
+
         env.as_contract(&contract_id, || {
             // Start unconfigured
             assert!(check_governance_version(&env));
-            
+
             // Transition to configured with min_version 0
             set_governance_contract(&env, gov_id.clone());
             assert!(check_governance_version(&env));
-            
+
             // Transition to actually gated (min_version > 0)
             set_min_governance_version(&env, 1);
             // Mock returns 2, which is >= 1
             assert!(check_governance_version(&env));
-            
+
             // Test failing gate
             set_min_governance_version(&env, 3);
             // Mock returns 2, which is < 3

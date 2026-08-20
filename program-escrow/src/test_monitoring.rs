@@ -104,7 +104,10 @@ fn test_set_large_payout_threshold_accepts_boundary_10000() {
     let client = ProgramEscrowContractClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
     client.setadmin(&admin);
-    client.try_set_large_payout_threshold(&10_000).unwrap().unwrap();
+    client
+        .try_set_large_payout_threshold(&10_000)
+        .unwrap()
+        .unwrap();
     assert_eq!(client.get_large_payout_threshold(), 10_000);
 }
 #[test]
@@ -183,7 +186,11 @@ fn test_non_admin_cannot_update_large_payout_threshold() {
 fn setup_with_funds(
     env: &Env,
     total_funds: i128,
-) -> (ProgramEscrowContractClient<'static>, Address, token::StellarAssetClient<'static>) {
+) -> (
+    ProgramEscrowContractClient<'static>,
+    Address,
+    token::StellarAssetClient<'static>,
+) {
     env.mock_all_auths();
     let contract_id = env.register_contract(None, ProgramEscrowContract);
     let client = ProgramEscrowContractClient::new(env, &contract_id);
@@ -315,53 +322,53 @@ fn test_metric_decay_and_alert_clearing() {
     let tokenadmin = Address::generate(&env);
     let token_id = env.register_stellar_asset_contract(tokenadmin.clone());
     let program_id = String::from_str(&env, "decay-test");
-    
+
     // Set initial time
     env.ledger().set_timestamp(1000);
-    
+
     // Operation 1 (Init): success
     client.init_program(&program_id, &admin, &token_id);
     assert_eq!(client.health_check().is_healthy, true);
-    
+
     // Operation 2: Trigger error
     // Since normal contract panics roll back the state, we directly inject a tracked failure
     // as if a non-panicking internal check failed and tracked it.
     env.as_contract(&contract_id, || {
         crate::monitoring::track_operation(&env, symbol_short!("lock"), admin.clone(), false);
     });
-    
+
     // At this point in the window: 1 success, 1 failure -> 50% error rate
     // Threshold is 50%, so it should trip the alert (is_healthy = false)
     assert_eq!(client.health_check().is_healthy, false);
-    
+
     let snap1 = client.get_state_snapshot();
     assert_eq!(snap1.total_operations, 2);
     assert_eq!(snap1.total_errors, 1);
-    
+
     // Edge case: Metric right at the decay boundary (1 hour = 3600 seconds)
     // At timestamp 1000 + 3599 = 4599, the window has NOT decayed
     env.ledger().set_timestamp(4599);
     assert_eq!(client.health_check().is_healthy, false);
-    
+
     // Metric decays (window reset) at boundary: timestamp 1000 + 3600 = 4600
     env.ledger().set_timestamp(4600);
-    
+
     // Alert state clears due to decay of old metrics
     assert_eq!(client.health_check().is_healthy, true);
-    
+
     // The metric that should NEVER decay (ERROR_COUNT) is confirmed not to
     let snap2 = client.get_state_snapshot();
     assert_eq!(snap2.total_operations, 2);
     assert_eq!(snap2.total_errors, 1);
-    
+
     // Perform a new operation in the new window (success)
     env.as_contract(&contract_id, || {
         crate::monitoring::track_operation(&env, symbol_short!("lock"), admin.clone(), true);
     });
-    
+
     // Window now has 1 success, 0 errors -> 0% error rate
     assert_eq!(client.health_check().is_healthy, true);
-    
+
     // Overall metrics continue to accumulate
     let snap3 = client.get_state_snapshot();
     assert_eq!(snap3.total_operations, 3);
@@ -506,4 +513,3 @@ fn test_window_boundary_fresh_start() {
     assert_eq!(snap.total_operations, 3);
     assert_eq!(snap.total_errors, 1);
 }
-

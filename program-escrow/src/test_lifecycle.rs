@@ -1047,8 +1047,8 @@ fn setup_multi_milestone_program(
     milestone_count: u32,
 ) -> (
     ProgramEscrowContractClient<'static>,
-    Address,               // authorized_payout_key (the single on-chain auth)
-    Address,               // admin (can open disputes)
+    Address, // authorized_payout_key (the single on-chain auth)
+    Address, // admin (can open disputes)
     token::Client<'static>,
     soroban_sdk::Vec<Address>, // milestone recipients, one per milestone
 ) {
@@ -1149,10 +1149,7 @@ fn test_multi_releaser_wrong_releaser_try_returns_err() {
     // is the contract-level rejection (balance guard).
     let bogus_recipient = Address::generate(&env);
     let result = client.try_single_payout(&bogus_recipient, &70_001); // 1 unit over remaining
-    assert!(
-        result.is_err(),
-        "Overdraft attempt must return an error"
-    );
+    assert!(result.is_err(), "Overdraft attempt must return an error");
 
     // No funds moved for the bogus call
     assert_eq!(token_client.balance(&bogus_recipient), 0);
@@ -1367,15 +1364,27 @@ fn test_multi_releaser_terminal_state_only_after_all_milestones_released() {
 
     // After M1 — NOT drained
     client.single_payout(&m1, &20_000);
-    assert_ne!(client.get_remaining_balance(), 0, "Should not be drained after M1");
+    assert_ne!(
+        client.get_remaining_balance(),
+        0,
+        "Should not be drained after M1"
+    );
 
     // After M2 — NOT drained
     client.single_payout(&m2, &20_000);
-    assert_ne!(client.get_remaining_balance(), 0, "Should not be drained after M2");
+    assert_ne!(
+        client.get_remaining_balance(),
+        0,
+        "Should not be drained after M2"
+    );
 
     // After M3 — NOW drained (terminal state reached)
     client.single_payout(&m3, &20_000);
-    assert_eq!(client.get_remaining_balance(), 0, "Should be drained after all milestones");
+    assert_eq!(
+        client.get_remaining_balance(),
+        0,
+        "Should be drained after all milestones"
+    );
 
     // Any further payout attempt on an already-drained escrow must fail
     let extra_recipient = Address::generate(&env);
@@ -1426,13 +1435,13 @@ fn test_multi_releaser_release_history_integrity() {
     let info = client.get_program_info();
     assert_eq!(info.payout_history.len(), 4);
     assert_eq!(info.payout_history.get(0).unwrap().recipient, m1);
-    assert_eq!(info.payout_history.get(0).unwrap().amount,  30_000);
+    assert_eq!(info.payout_history.get(0).unwrap().amount, 30_000);
     assert_eq!(info.payout_history.get(1).unwrap().recipient, m2);
-    assert_eq!(info.payout_history.get(1).unwrap().amount,  20_000);
+    assert_eq!(info.payout_history.get(1).unwrap().amount, 20_000);
     assert_eq!(info.payout_history.get(2).unwrap().recipient, m4);
-    assert_eq!(info.payout_history.get(2).unwrap().amount,  30_000);
+    assert_eq!(info.payout_history.get(2).unwrap().amount, 30_000);
     assert_eq!(info.payout_history.get(3).unwrap().recipient, m3);
-    assert_eq!(info.payout_history.get(3).unwrap().amount,  40_000);
+    assert_eq!(info.payout_history.get(3).unwrap().amount, 40_000);
 
     // Individual token balances
     assert_eq!(token_client.balance(&m1), 30_000);

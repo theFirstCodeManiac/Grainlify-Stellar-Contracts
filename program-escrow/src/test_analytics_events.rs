@@ -330,7 +330,9 @@ fn test_large_single_payout_event_ordering_is_stable() {
         .unwrap();
     let aggregate_remaining =
         <i128 as TryFromVal<Env, Val>>::try_from_val(&env, &aggregate_remaining_val).unwrap();
-    let aggregate_paid_val = aggregate_map.get(Symbol::new(&env, "total_paid_out")).unwrap();
+    let aggregate_paid_val = aggregate_map
+        .get(Symbol::new(&env, "total_paid_out"))
+        .unwrap();
     let aggregate_paid =
         <i128 as TryFromVal<Env, Val>>::try_from_val(&env, &aggregate_paid_val).unwrap();
 

@@ -843,10 +843,10 @@ fn test_record_success_in_open_state_is_noop() {
         assert_eq!(get_state(&env), CircuitState::Open);
         let initial_failure_count = get_failure_count(&env);
         let initial_success_count = get_success_count(&env);
-        
+
         // Calling record_success in Open state should be a no-op
         record_success(&env);
-        
+
         // State should remain Open with unchanged counters
         assert_eq!(get_state(&env), CircuitState::Open);
         assert_eq!(get_failure_count(&env), initial_failure_count);
@@ -865,16 +865,16 @@ fn test_record_failure_below_threshold_preserves_closed_state() {
     env.as_contract(&contract_id, || {
         let prog = String::from_str(&env, "TestProg");
         let op = symbol_short!("op");
-        
+
         // Record 2 failures (below threshold of 5)
         record_failure(&env, prog.clone(), op.clone(), ERR_TRANSFER_FAILED);
         record_failure(&env, prog.clone(), op.clone(), ERR_TRANSFER_FAILED);
-        
+
         // Assert resulting state: still Closed, failure_count = 2
         assert_eq!(get_state(&env), CircuitState::Closed);
         assert_eq!(get_failure_count(&env), 2);
         assert_eq!(get_success_count(&env), 0);
-        
+
         // Verify error log was populated
         let log = get_error_log(&env);
         assert_eq!(log.len(), 2);
@@ -893,20 +893,20 @@ fn test_record_failure_at_threshold_opens_circuit_and_sets_timestamps() {
     env.as_contract(&contract_id, || {
         let prog = String::from_str(&env, "TestProg");
         let op = symbol_short!("op");
-        
+
         // Record 2 failures (below threshold)
         record_failure(&env, prog.clone(), op.clone(), ERR_TRANSFER_FAILED);
         record_failure(&env, prog.clone(), op.clone(), ERR_TRANSFER_FAILED);
         assert_eq!(get_state(&env), CircuitState::Closed);
-        
+
         // 3rd failure should open circuit
         record_failure(&env, prog.clone(), op.clone(), ERR_TRANSFER_FAILED);
-        
+
         // Assert resulting state: Open with proper timestamps
         assert_eq!(get_state(&env), CircuitState::Open);
         assert_eq!(get_failure_count(&env), 3);
         assert_eq!(get_success_count(&env), 0);
-        
+
         let status = get_status(&env);
         assert_eq!(status.opened_at, 7777);
         assert_eq!(status.last_failure_timestamp, 7777);
@@ -926,18 +926,18 @@ fn test_record_failure_in_open_state_continues_incrementing() {
     env.as_contract(&contract_id, || {
         assert_eq!(get_state(&env), CircuitState::Open);
         assert_eq!(get_failure_count(&env), 2);
-        
+
         let prog = String::from_str(&env, "TestProg");
         let op = symbol_short!("op");
-        
+
         // Additional failures in Open state
         record_failure(&env, prog.clone(), op.clone(), ERR_TRANSFER_FAILED);
         record_failure(&env, prog.clone(), op.clone(), ERR_TRANSFER_FAILED);
-        
+
         // Assert resulting state: still Open, failure_count incremented
         assert_eq!(get_state(&env), CircuitState::Open);
         assert_eq!(get_failure_count(&env), 4);
-        
+
         // Error log should have all entries
         let log = get_error_log(&env);
         assert_eq!(log.len(), 4);
@@ -955,15 +955,15 @@ fn test_record_success_in_closed_resets_failure_count() {
     env.as_contract(&contract_id, || {
         let prog = String::from_str(&env, "TestProg");
         let op = symbol_short!("op");
-        
+
         // Accumulate some failures
         record_failure(&env, prog.clone(), op.clone(), ERR_TRANSFER_FAILED);
         record_failure(&env, prog.clone(), op.clone(), ERR_TRANSFER_FAILED);
         assert_eq!(get_failure_count(&env), 2);
-        
+
         // Success should reset failure streak
         record_success(&env);
-        
+
         // Assert resulting state: Closed with reset counters
         assert_eq!(get_state(&env), CircuitState::Closed);
         assert_eq!(get_failure_count(&env), 0);
@@ -991,17 +991,17 @@ fn test_record_success_in_half_open_increments_success_count() {
             },
         );
     });
-    
+
     simulate_failures(&env, &contract_id, 2);
     env.as_contract(&contract_id, || {
         // Use direct half_open_circuit to avoid auth issues in test
         half_open_circuit(&env);
         assert_eq!(get_state(&env), CircuitState::HalfOpen);
         assert_eq!(get_success_count(&env), 0);
-        
+
         // First success in HalfOpen
         record_success(&env);
-        
+
         // Assert resulting state: HalfOpen with success_count = 1
         assert_eq!(get_state(&env), CircuitState::HalfOpen);
         assert_eq!(get_success_count(&env), 1);
@@ -1029,20 +1029,20 @@ fn test_record_success_in_half_open_at_threshold_closes_and_resets() {
             },
         );
     });
-    
+
     simulate_failures(&env, &contract_id, 2);
     env.as_contract(&contract_id, || {
         reset_circuit_breaker(&env, &admin);
         assert_eq!(get_state(&env), CircuitState::HalfOpen);
-        
+
         // First success
         record_success(&env);
         assert_eq!(get_state(&env), CircuitState::HalfOpen);
         assert_eq!(get_success_count(&env), 1);
-        
+
         // Second success should close circuit
         record_success(&env);
-        
+
         // Assert resulting state: Closed with all counters reset
         assert_eq!(get_state(&env), CircuitState::Closed);
         assert_eq!(get_failure_count(&env), 0);
@@ -1062,9 +1062,9 @@ fn test_reset_from_open_to_half_open_preserves_failure_count() {
     env.as_contract(&contract_id, || {
         assert_eq!(get_state(&env), CircuitState::Open);
         assert_eq!(get_failure_count(&env), 3);
-        
+
         reset_circuit_breaker(&env, &admin);
-        
+
         // Assert resulting state: HalfOpen with success_count reset
         assert_eq!(get_state(&env), CircuitState::HalfOpen);
         assert_eq!(get_success_count(&env), 0);
@@ -1084,10 +1084,10 @@ fn test_reset_from_half_open_to_closed_resets_all_counters() {
     env.as_contract(&contract_id, || {
         reset_circuit_breaker(&env, &admin);
         assert_eq!(get_state(&env), CircuitState::HalfOpen);
-        
+
         // Reset again from HalfOpen - use direct close_circuit to avoid auth issue
         close_circuit(&env);
-        
+
         // Assert resulting state: Closed with all counters reset
         assert_eq!(get_state(&env), CircuitState::Closed);
         assert_eq!(get_failure_count(&env), 0);
@@ -1110,10 +1110,10 @@ fn test_reset_from_closed_resets_all_counters() {
         record_failure(&env, prog.clone(), op.clone(), ERR_TRANSFER_FAILED);
         record_failure(&env, prog.clone(), op.clone(), ERR_TRANSFER_FAILED);
         assert_eq!(get_failure_count(&env), 2);
-        
+
         // Reset from Closed
         reset_circuit_breaker(&env, &admin);
-        
+
         // Assert resulting state: Closed with all counters reset
         assert_eq!(get_state(&env), CircuitState::Closed);
         assert_eq!(get_failure_count(&env), 0);
@@ -1134,13 +1134,13 @@ fn test_record_failure_in_half_open_reopens_and_increments_failure_count() {
         reset_circuit_breaker(&env, &admin);
         assert_eq!(get_state(&env), CircuitState::HalfOpen);
         assert_eq!(get_failure_count(&env), 2);
-        
+
         let prog = String::from_str(&env, "TestProg");
         let op = symbol_short!("op");
-        
+
         // Failure in HalfOpen should re-open circuit
         record_failure(&env, prog.clone(), op.clone(), ERR_TRANSFER_FAILED);
-        
+
         // Assert resulting state: Open with incremented failure_count
         assert_eq!(get_state(&env), CircuitState::Open);
         assert_eq!(get_failure_count(&env), 3);
@@ -1168,24 +1168,24 @@ fn test_error_log_capping_removes_oldest_entries() {
             },
         );
     });
-    
+
     env.as_contract(&contract_id, || {
         let prog = String::from_str(&env, "TestProg");
         let op = symbol_short!("op");
-        
+
         // Add 5 failures
         for i in 1..=5 {
             record_failure(&env, prog.clone(), op.clone(), ERR_TRANSFER_FAILED);
         }
-        
+
         let log = get_error_log(&env);
         assert_eq!(log.len(), 3);
-        
+
         // Assert resulting state: log contains only latest 3 entries
         let first = log.get(0).unwrap();
         let second = log.get(1).unwrap();
         let third = log.get(2).unwrap();
-        
+
         assert_eq!(first.failure_count_at_time, 3);
         assert_eq!(second.failure_count_at_time, 4);
         assert_eq!(third.failure_count_at_time, 5);
@@ -1203,17 +1203,17 @@ fn test_execute_with_retry_stops_on_open_circuit_without_attempting() {
     simulate_failures(&env, &contract_id, 2);
     env.as_contract(&contract_id, || {
         assert_eq!(get_state(&env), CircuitState::Open);
-        
+
         let prog = String::from_str(&env, "TestProg");
         let op = symbol_short!("op");
         let retry_cfg = RetryConfig { max_attempts: 5 };
-        
+
         let mut attempt_count = 0u32;
         let result = execute_with_retry(&env, &retry_cfg, prog, op, || {
             attempt_count += 1;
             Ok(())
         });
-        
+
         // Assert resulting state: no attempts made, circuit error returned
         assert!(!result.succeeded);
         assert_eq!(result.attempts, 0);
@@ -1242,23 +1242,23 @@ fn test_execute_with_retry_exhaustion_opens_circuit_with_state() {
             },
         );
     });
-    
+
     env.as_contract(&contract_id, || {
         let prog = String::from_str(&env, "TestProg");
         let op = symbol_short!("op");
         let retry_cfg = RetryConfig { max_attempts: 3 };
-        
+
         let result = execute_with_retry(&env, &retry_cfg, prog.clone(), op.clone(), || {
             Err(ERR_TRANSFER_FAILED)
         });
-        
+
         // Assert resulting state: circuit opened after 3 failures
         assert!(!result.succeeded);
         assert_eq!(result.attempts, 3);
         assert_eq!(result.final_error, ERR_TRANSFER_FAILED);
         assert_eq!(get_state(&env), CircuitState::Open);
         assert_eq!(get_failure_count(&env), 3);
-        
+
         // Error log should have entries
         let log = get_error_log(&env);
         assert!(log.len() >= 3);
@@ -1285,12 +1285,12 @@ fn test_execute_with_retry_success_resets_failure_streak() {
             },
         );
     });
-    
+
     env.as_contract(&contract_id, || {
         let prog = String::from_str(&env, "TestProg");
         let op = symbol_short!("op");
         let retry_cfg = RetryConfig { max_attempts: 3 };
-        
+
         let mut call_count = 0u32;
         let result = execute_with_retry(&env, &retry_cfg, prog, op, || {
             call_count += 1;
@@ -1300,7 +1300,7 @@ fn test_execute_with_retry_success_resets_failure_streak() {
                 Ok(())
             }
         });
-        
+
         // Assert resulting state: success resets failure count
         assert!(result.succeeded);
         assert_eq!(result.attempts, 2);
@@ -1321,11 +1321,11 @@ fn test_direct_open_circuit_sets_complete_state() {
     env.ledger().set_timestamp(12345);
     env.as_contract(&contract_id, || {
         open_circuit(&env);
-        
+
         // Assert resulting state: Open with timestamp and success_count reset
         assert_eq!(get_state(&env), CircuitState::Open);
         assert_eq!(get_success_count(&env), 0);
-        
+
         let status = get_status(&env);
         assert_eq!(status.opened_at, 12345);
     });
@@ -1343,14 +1343,14 @@ fn test_direct_close_circuit_resets_all_state() {
     env.as_contract(&contract_id, || {
         assert_eq!(get_state(&env), CircuitState::Open);
         assert_eq!(get_failure_count(&env), 2);
-        
+
         close_circuit(&env);
-        
+
         // Assert resulting state: Closed with all counters reset
         assert_eq!(get_state(&env), CircuitState::Closed);
         assert_eq!(get_failure_count(&env), 0);
         assert_eq!(get_success_count(&env), 0);
-        
+
         let status = get_status(&env);
         assert_eq!(status.opened_at, 0);
     });
@@ -1366,7 +1366,7 @@ fn test_direct_half_open_circuit_sets_success_count() {
     let (env, contract_id) = setup_env();
     env.as_contract(&contract_id, || {
         half_open_circuit(&env);
-        
+
         // Assert resulting state: HalfOpen with success_count reset
         assert_eq!(get_state(&env), CircuitState::HalfOpen);
         assert_eq!(get_success_count(&env), 0);
@@ -1405,7 +1405,7 @@ fn test_retry_exhaustion_fallback_terminal_error() {
         let result = execute_with_retry(&env, &retry_cfg, prog.clone(), op.clone(), || {
             // Attempt to modify state but fail
             mock_state_val += 1;
-            
+
             // Clean up partial state since we are about to return a failure
             mock_state_val -= 1;
             Err(ERR_TRANSFER_FAILED)
@@ -1414,10 +1414,10 @@ fn test_retry_exhaustion_fallback_terminal_error() {
         // 1. Exhaustion after exactly the max-retry count
         assert_eq!(result.attempts, 3);
         assert!(!result.succeeded);
-        
+
         // 2. Clear, specific terminal error is returned
         assert_eq!(result.final_error, ERR_TRANSFER_FAILED);
-        
+
         // 3. No ambiguous partial state is left behind: state matches pre-attempt state
         assert_eq!(mock_state_val, initial_state_val);
     });
@@ -1447,16 +1447,31 @@ fn test_retry_exhaustion_with_concurrent_unrelated_operation() {
         let mut attempt_count = 0;
         let result = execute_with_retry(&env, &retry_cfg, prog.clone(), op.clone(), || {
             attempt_count += 1;
-            
+
             if attempt_count == 1 {
                 // Simulate a concurrent unrelated operation tripping the circuit breaker mid-sequence
                 let unrelated_prog = String::from_str(&env, "Unrelated");
                 let unrelated_op = symbol_short!("unrel");
-                record_failure(&env, unrelated_prog.clone(), unrelated_op.clone(), ERR_TRANSFER_FAILED);
-                record_failure(&env, unrelated_prog.clone(), unrelated_op.clone(), ERR_TRANSFER_FAILED);
-                record_failure(&env, unrelated_prog.clone(), unrelated_op.clone(), ERR_TRANSFER_FAILED);
+                record_failure(
+                    &env,
+                    unrelated_prog.clone(),
+                    unrelated_op.clone(),
+                    ERR_TRANSFER_FAILED,
+                );
+                record_failure(
+                    &env,
+                    unrelated_prog.clone(),
+                    unrelated_op.clone(),
+                    ERR_TRANSFER_FAILED,
+                );
+                record_failure(
+                    &env,
+                    unrelated_prog.clone(),
+                    unrelated_op.clone(),
+                    ERR_TRANSFER_FAILED,
+                );
             }
-            
+
             // This specific operation fails
             Err(ERR_TRANSFER_FAILED)
         });
@@ -1510,11 +1525,11 @@ fn test_retry_counter_reset_after_mid_sequence_recovery() {
         assert!(result.succeeded);
         assert_eq!(result.attempts, 3);
         assert_eq!(result.final_error, 0); // ERR_NONE
-        
+
         // Assert that the circuit breaker failure streak was reset
         assert_eq!(get_failure_count(&env), 0);
         assert_eq!(get_state(&env), CircuitState::Closed);
-        
+
         // State successfully updated upon mid-sequence recovery
         assert_eq!(mock_state_val, 100);
     });

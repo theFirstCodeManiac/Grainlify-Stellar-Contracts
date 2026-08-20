@@ -523,7 +523,6 @@ fn test_reentrancy_guard_model_documentation() {
     assert!(true, "Documentation test - see comments for guarantees");
 }
 
-
 // ============================================================================
 // Token Callback Reentrancy Tests
 // ============================================================================
@@ -543,17 +542,19 @@ fn test_token_callback_reentrancy_single_payout() {
     let amount = 1000_0000000i128;
 
     // Register our malicious reentrant contract and use it as the token
-    let token_address = env.register_contract(None, crate::malicious_reentrant::MaliciousReentrantContract);
-    let malicious_token = crate::malicious_reentrant::MaliciousReentrantContractClient::new(&env, &token_address);
+    let token_address =
+        env.register_contract(None, crate::malicious_reentrant::MaliciousReentrantContract);
+    let malicious_token =
+        crate::malicious_reentrant::MaliciousReentrantContractClient::new(&env, &token_address);
     malicious_token.init(&contract_id);
     malicious_token.set_attack_mode(&1u32); // 1 = attack single_payout
 
     client.init_program(&program_id, &authorized_key, &token_address);
-    
+
     malicious_token.set_attack_mode(&0u32);
     // Lock funds with normal mode
     client.lock_program_funds(&authorized_key, &amount);
-    
+
     // Now enable attack mode before payout
     malicious_token.set_attack_mode(&1u32);
     malicious_token.reset_attack_count();
@@ -577,10 +578,12 @@ fn test_token_callback_reentrancy_trigger_releases() {
     let amount = 1000_0000000i128;
     let release_timestamp = 1000u64;
 
-    let token_address = env.register_contract(None, crate::malicious_reentrant::MaliciousReentrantContract);
-    let malicious_token = crate::malicious_reentrant::MaliciousReentrantContractClient::new(&env, &token_address);
+    let token_address =
+        env.register_contract(None, crate::malicious_reentrant::MaliciousReentrantContract);
+    let malicious_token =
+        crate::malicious_reentrant::MaliciousReentrantContractClient::new(&env, &token_address);
     malicious_token.init(&contract_id);
-    malicious_token.set_attack_mode(&0u32); 
+    malicious_token.set_attack_mode(&0u32);
 
     client.init_program(&program_id, &authorized_key, &token_address);
     client.lock_program_funds(&authorized_key, &amount);
@@ -611,10 +614,12 @@ fn test_token_callback_reentrancy_batch_payout() {
     let program_id = String::from_str(&env, "test-program");
     let total_amount = 1000_0000000i128;
 
-    let token_address = env.register_contract(None, crate::malicious_reentrant::MaliciousReentrantContract);
-    let malicious_token = crate::malicious_reentrant::MaliciousReentrantContractClient::new(&env, &token_address);
+    let token_address =
+        env.register_contract(None, crate::malicious_reentrant::MaliciousReentrantContract);
+    let malicious_token =
+        crate::malicious_reentrant::MaliciousReentrantContractClient::new(&env, &token_address);
     malicious_token.init(&contract_id);
-    malicious_token.set_attack_mode(&0u32); 
+    malicious_token.set_attack_mode(&0u32);
 
     client.init_program(&program_id, &authorized_key, &token_address);
     client.lock_program_funds(&authorized_key, &total_amount);
@@ -641,10 +646,12 @@ fn test_token_callback_reentrancy_consistency() {
     let program_id = String::from_str(&env, "test-program");
     let amount = 1000_0000000i128;
 
-    let token_address = env.register_contract(None, crate::malicious_reentrant::MaliciousReentrantContract);
-    let malicious_token = crate::malicious_reentrant::MaliciousReentrantContractClient::new(&env, &token_address);
+    let token_address =
+        env.register_contract(None, crate::malicious_reentrant::MaliciousReentrantContract);
+    let malicious_token =
+        crate::malicious_reentrant::MaliciousReentrantContractClient::new(&env, &token_address);
     malicious_token.init(&contract_id);
-    malicious_token.set_attack_mode(&0u32); 
+    malicious_token.set_attack_mode(&0u32);
 
     client.init_program(&program_id, &authorized_key, &token_address);
     client.lock_program_funds(&authorized_key, &amount);
@@ -659,18 +666,23 @@ fn test_token_callback_reentrancy_consistency() {
 
     // try_ catches the panic from reentrancy guard
     let result = client.try_single_payout(&recipient, &(amount / 2));
-    assert!(result.is_err(), "Reentrancy should be blocked and return an error");
+    assert!(
+        result.is_err(),
+        "Reentrancy should be blocked and return an error"
+    );
 
     // Fetch state after caught panic
     let final_monitoring = client.get_monitoring_analytics();
     let final_circuit_status = client.get_circuit_status();
 
     // Verify consistency: counters and circuit status should be unchanged
-    assert_eq!(initial_monitoring.operation_count, final_monitoring.operation_count);
+    assert_eq!(
+        initial_monitoring.operation_count,
+        final_monitoring.operation_count
+    );
     assert_eq!(initial_monitoring.error_count, final_monitoring.error_count);
     assert_eq!(
-        initial_circuit_status,
-        final_circuit_status,
+        initial_circuit_status, final_circuit_status,
         "Circuit breaker status should remain unchanged on panic rollback"
     );
 }

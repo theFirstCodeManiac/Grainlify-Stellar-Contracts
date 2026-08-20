@@ -557,10 +557,18 @@ fn test_invariant_double_claim_milestone_rejected() {
     assert!(res.is_err(), "double‑claim must be rejected");
 
     let bal_after_second = token_client.balance(&winner);
-    assert_eq!(bal_after_second, bal_after_first, "balance must not change after double‑claim");
+    assert_eq!(
+        bal_after_second, bal_after_first,
+        "balance must not change after double‑claim"
+    );
 
     // Invariant still holds
-    assert_balance_invariant(&client, &token_client, &contract_id, "after double‑claim attempt");
+    assert_balance_invariant(
+        &client,
+        &token_client,
+        &contract_id,
+        "after double‑claim attempt",
+    );
 }
 
 // ---------------------------------------------------------------------------

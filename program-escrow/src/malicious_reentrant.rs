@@ -215,7 +215,7 @@ impl MaliciousReentrantContract {
                 let client = crate::ProgramEscrowContractClient::new(&env, &target);
                 client.trigger_program_releases();
             }
-            _ => { }
+            _ => {}
         }
     }
 

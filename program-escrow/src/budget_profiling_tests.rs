@@ -1,4 +1,4 @@
-﻿#![cfg(test)]
+#![cfg(test)]
 
 extern crate std;
 
@@ -416,12 +416,7 @@ fn regression_threshold_passes_at_margin_boundary() {
 fn regression_threshold_fails_one_over_margin() {
     let baseline: u64 = 100_000;
     let one_over = baseline + (baseline * REGRESSION_MARGIN_PCT / 100) + 1; // 115_001
-    assert_within_regression_threshold(
-        "unit_test(one_over_margin)",
-        one_over,
-        baseline,
-        1_000_000,
-    );
+    assert_within_regression_threshold("unit_test(one_over_margin)", one_over, baseline, 1_000_000);
 }
 
 /// Confirms that assert_within_regression_threshold fails when actual is well
@@ -431,10 +426,5 @@ fn regression_threshold_fails_one_over_margin() {
 fn regression_threshold_fails_on_significant_regression() {
     let baseline: u64 = 100_000;
     let doubled = baseline * 2; // 200% — far beyond the 15% margin
-    assert_within_regression_threshold(
-        "unit_test(doubled_cost)",
-        doubled,
-        baseline,
-        1_000_000,
-    );
+    assert_within_regression_threshold("unit_test(doubled_cost)", doubled, baseline, 1_000_000);
 }

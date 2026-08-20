@@ -26,6 +26,12 @@ lto = true
 codegen-units = 1
 panic = "abort"
 
+[profile.dev]
+debug = 0
+
+[profile.test]
+debug = 0
+
 [[test]]
 name = "integration_tests"
 path = "integration_tests.rs"

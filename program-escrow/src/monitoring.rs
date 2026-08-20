@@ -24,7 +24,6 @@ const WINDOW_ERRS: &str = "win_errs";
 const WINDOW_DURATION: u64 = 3600; // 1 hour rolling window
 const ERROR_RATE_THRESHOLD_BPS: u32 = 5000; // 50% error rate trips alert
 
-
 // Event: Operation metric
 #[contracttype]
 #[derive(Clone, Debug)]
@@ -101,20 +100,22 @@ pub fn track_operation(env: &Env, operation: Symbol, caller: Address, success: b
     let start_key = Symbol::new(env, WINDOW_START);
     let win_ops_key = Symbol::new(env, WINDOW_OPS);
     let win_errs_key = Symbol::new(env, WINDOW_ERRS);
-    
+
     let now = env.ledger().timestamp();
     let win_start_opt: Option<u64> = env.storage().persistent().get(&start_key);
     let win_start_val = win_start_opt.unwrap_or(now);
-    
+
     // Explicit reset after WINDOW_DURATION or on first operation
     if win_start_opt.is_none() || now.saturating_sub(win_start_val) >= WINDOW_DURATION {
         env.storage().persistent().set(&start_key, &now);
         env.storage().persistent().set(&win_ops_key, &1u64);
-        env.storage().persistent().set(&win_errs_key, &(if success { 0u64 } else { 1u64 }));
+        env.storage()
+            .persistent()
+            .set(&win_errs_key, &(if success { 0u64 } else { 1u64 }));
     } else {
         let w_ops: u64 = env.storage().persistent().get(&win_ops_key).unwrap_or(0);
         env.storage().persistent().set(&win_ops_key, &(w_ops + 1));
-        
+
         if !success {
             let w_errs: u64 = env.storage().persistent().get(&win_errs_key).unwrap_or(0);
             env.storage().persistent().set(&win_errs_key, &(w_errs + 1));
@@ -164,24 +165,24 @@ pub fn health_check(env: &Env) -> HealthStatus {
     let win_start_opt: Option<u64> = env.storage().persistent().get(&start_key);
     let win_start_val = win_start_opt.unwrap_or(0); // If none, then error rate check doesn't matter much, but we handle it
     let now = env.ledger().timestamp();
-    
-    // An alert triggered by a stale metric clears once the window decays
-    let is_healthy = if win_start_opt.is_none() || now.saturating_sub(win_start_val) >= WINDOW_DURATION {
-        true
-    } else {
-        let win_ops_key = Symbol::new(env, WINDOW_OPS);
-        let win_errs_key = Symbol::new(env, WINDOW_ERRS);
-        let w_ops: u64 = env.storage().persistent().get(&win_ops_key).unwrap_or(0);
-        let w_errs: u64 = env.storage().persistent().get(&win_errs_key).unwrap_or(0);
-        
-        if w_ops > 0 {
-            let error_rate = (w_errs as u128 * 10_000) / (w_ops as u128);
-            error_rate < ERROR_RATE_THRESHOLD_BPS as u128
-        } else {
-            true
-        }
-    };
 
+    // An alert triggered by a stale metric clears once the window decays
+    let is_healthy =
+        if win_start_opt.is_none() || now.saturating_sub(win_start_val) >= WINDOW_DURATION {
+            true
+        } else {
+            let win_ops_key = Symbol::new(env, WINDOW_OPS);
+            let win_errs_key = Symbol::new(env, WINDOW_ERRS);
+            let w_ops: u64 = env.storage().persistent().get(&win_ops_key).unwrap_or(0);
+            let w_errs: u64 = env.storage().persistent().get(&win_errs_key).unwrap_or(0);
+
+            if w_ops > 0 {
+                let error_rate = (w_errs as u128 * 10_000) / (w_ops as u128);
+                error_rate < ERROR_RATE_THRESHOLD_BPS as u128
+            } else {
+                true
+            }
+        };
 
     HealthStatus {
         is_healthy,
