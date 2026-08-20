@@ -8,6 +8,7 @@ use soroban_sdk::{
 
 struct RbacSetup<'a> {
     env: Env,
+    contract_id: Address,
     admin: Address,
     operator: Address,
     pauser: Address,
@@ -68,6 +69,7 @@ impl<'a> RbacSetup<'a> {
 
         Self {
             env,
+            contract_id,
             admin,
             operator,
             pauser,
@@ -198,7 +200,9 @@ fn test_operator_cannot_reset_circuit() {
 fn test_admin_can_set_paused() {
     let setup = RbacSetup::new();
     setup.env.mock_all_auths();
-    setup.client.set_paused(&Some(true), &Some(true), &Some(true));
+    setup
+        .client
+        .set_paused(&Some(true), &Some(true), &Some(true));
     let flags = setup.client.get_pause_flags();
     assert!(flags.lock_paused && flags.release_paused && flags.refund_paused);
 }
@@ -217,7 +221,9 @@ fn test_admin_can_update_rate_limit_config() {
 fn test_admin_can_set_fund_cap_config() {
     let setup = RbacSetup::new();
     setup.env.mock_all_auths();
-    setup.client.set_fund_cap_config(&Some(1_000_000), &Some(500_000));
+    setup
+        .client
+        .set_fund_cap_config(&Some(1_000_000), &Some(500_000));
     let cap = setup.client.get_fund_cap_config();
     assert_eq!(cap.max_total_funds, Some(1_000_000));
     assert_eq!(cap.max_single_lock, Some(500_000));
@@ -273,7 +279,9 @@ fn test_circuit_admin_can_reset_circuit_breaker() {
 fn test_circuit_admin_can_configure_circuit_breaker() {
     let setup = RbacSetup::new();
     setup.env.mock_all_auths();
-    setup.client.configure_circuit_breaker(&setup.pauser, &10, &3, &50);
+    setup
+        .client
+        .configure_circuit_breaker(&setup.pauser, &10, &3, &50);
     let status = setup.client.get_circuit_status();
     assert_eq!(status.failure_threshold, 10);
 }
@@ -283,7 +291,9 @@ fn test_circuit_admin_can_configure_circuit_breaker() {
 fn test_circuit_breaker_rejects_zero_failure_threshold() {
     let setup = RbacSetup::new();
     setup.env.mock_all_auths();
-    setup.client.configure_circuit_breaker(&setup.pauser, &0, &1, &10);
+    setup
+        .client
+        .configure_circuit_breaker(&setup.pauser, &0, &1, &10);
 }
 
 #[test]
@@ -291,6 +301,22 @@ fn test_circuit_admin_can_emergency_open_circuit() {
     let setup = RbacSetup::new();
     setup.env.mock_all_auths();
     setup.client.emergency_open_circuit(&setup.pauser);
+}
+
+#[test]
+fn test_circuit_admin_can_call_all_circuit_breaker_admin_entrypoints() {
+    let setup = RbacSetup::new();
+    setup.env.mock_all_auths();
+
+    setup.client.reset_circuit_breaker(&setup.pauser);
+    setup
+        .client
+        .configure_circuit_breaker(&setup.pauser, &7, &2, &30);
+    setup.client.emergency_open_circuit(&setup.pauser);
+
+    let status = setup.client.get_circuit_status();
+    assert_eq!(status.failure_threshold, 7);
+    assert!(matches!(status.state, error_recovery::CircuitState::Open));
 }
 
 // ─────────────────────────────────────────────────────────
@@ -324,7 +350,9 @@ fn test_admin_cannot_reset_circuit_breaker() {
 fn test_admin_cannot_configure_circuit_breaker() {
     let setup = RbacSetup::new();
     setup.env.mock_all_auths();
-    setup.client.configure_circuit_breaker(&setup.admin, &5, &2, &20);
+    setup
+        .client
+        .configure_circuit_breaker(&setup.admin, &5, &2, &20);
 }
 
 #[test]
@@ -465,7 +493,9 @@ fn test_operator_cannot_reset_circuit_breaker_cross_role() {
 fn test_operator_cannot_configure_circuit_breaker() {
     let setup = RbacSetup::new();
     setup.env.mock_all_auths();
-    setup.client.configure_circuit_breaker(&setup.operator, &5, &2, &20);
+    setup
+        .client
+        .configure_circuit_breaker(&setup.operator, &5, &2, &20);
 }
 
 #[test]
@@ -474,6 +504,59 @@ fn test_operator_cannot_emergency_open_circuit() {
     let setup = RbacSetup::new();
     setup.env.mock_all_auths();
     setup.client.emergency_open_circuit(&setup.operator);
+}
+
+#[test]
+#[should_panic(expected = "Unauthorized: only circuit admin can reset")]
+fn test_random_authorized_non_circuit_admin_cannot_reset_circuit_breaker() {
+    let setup = RbacSetup::new();
+    setup.env.mock_auths(&[MockAuth {
+        address: &setup.random,
+        invoke: &MockAuthInvoke {
+            contract: &setup.contract_id,
+            fn_name: "reset_circuit_breaker",
+            args: (setup.random.clone(),).into_val(&setup.env),
+            sub_invokes: &[],
+        },
+    }]);
+
+    setup.client.reset_circuit_breaker(&setup.random);
+}
+
+#[test]
+#[should_panic(expected = "Unauthorized: only circuit admin can configure")]
+fn test_random_authorized_non_circuit_admin_cannot_configure_circuit_breaker() {
+    let setup = RbacSetup::new();
+    setup.env.mock_auths(&[MockAuth {
+        address: &setup.random,
+        invoke: &MockAuthInvoke {
+            contract: &setup.contract_id,
+            fn_name: "configure_circuit_breaker",
+            args: (setup.random.clone(), 5u32, 2u32, 20u32).into_val(&setup.env),
+            sub_invokes: &[],
+        },
+    }]);
+
+    setup
+        .client
+        .configure_circuit_breaker(&setup.random, &5, &2, &20);
+}
+
+#[test]
+#[should_panic(expected = "Unauthorized: only circuit admin can open circuit")]
+fn test_random_authorized_non_circuit_admin_cannot_emergency_open_circuit() {
+    let setup = RbacSetup::new();
+    setup.env.mock_auths(&[MockAuth {
+        address: &setup.random,
+        invoke: &MockAuthInvoke {
+            contract: &setup.contract_id,
+            fn_name: "emergency_open_circuit",
+            args: (setup.random.clone(),).into_val(&setup.env),
+            sub_invokes: &[],
+        },
+    }]);
+
+    setup.client.emergency_open_circuit(&setup.random);
 }
 
 // ─────────────────────────────────────────────────────────
@@ -514,7 +597,17 @@ impl<'a> BootstrapFixture<'a> {
         let contract_id = env.register_contract(None, ProgramEscrowContract);
         let client = ProgramEscrowContractClient::new(&env, &contract_id);
         let admin = Address::generate(&env);
+        env.mock_auths(&[MockAuth {
+            address: &admin,
+            invoke: &MockAuthInvoke {
+                contract: &contract_id,
+                fn_name: "initialize_contract",
+                args: (admin.clone(),).into_val(&env),
+                sub_invokes: &[],
+            },
+        }]);
         client.initialize_contract(&admin);
+        env.mock_auths(&[]);
         Self {
             env,
             contract_id,
@@ -613,4 +706,64 @@ fn test_set_circuitadmin_rotation_by_stale_circuit_admin_rejected() {
     // hits error_recovery::set_circuitadmin's existing rejection path.
     fx.env.mock_all_auths();
     fx.client.set_circuitadmin(&successor, &Some(stale_admin));
+}
+
+#[test]
+#[should_panic(
+    expected = "Unauthorized: circuit admin not set; only circuit admin can reset circuit breaker"
+)]
+fn test_reset_circuit_breaker_without_circuit_admin_has_clear_panic() {
+    let fx = BootstrapFixture::new();
+    let caller = Address::generate(&fx.env);
+    fx.env.mock_auths(&[MockAuth {
+        address: &caller,
+        invoke: &MockAuthInvoke {
+            contract: &fx.contract_id,
+            fn_name: "reset_circuit_breaker",
+            args: (caller.clone(),).into_val(&fx.env),
+            sub_invokes: &[],
+        },
+    }]);
+
+    fx.client.reset_circuit_breaker(&caller);
+}
+
+#[test]
+#[should_panic(
+    expected = "Unauthorized: circuit admin not set; only circuit admin can configure circuit breaker"
+)]
+fn test_configure_circuit_breaker_without_circuit_admin_has_clear_panic() {
+    let fx = BootstrapFixture::new();
+    let caller = Address::generate(&fx.env);
+    fx.env.mock_auths(&[MockAuth {
+        address: &caller,
+        invoke: &MockAuthInvoke {
+            contract: &fx.contract_id,
+            fn_name: "configure_circuit_breaker",
+            args: (caller.clone(), 5u32, 2u32, 20u32).into_val(&fx.env),
+            sub_invokes: &[],
+        },
+    }]);
+
+    fx.client.configure_circuit_breaker(&caller, &5, &2, &20);
+}
+
+#[test]
+#[should_panic(
+    expected = "Unauthorized: circuit admin not set; only circuit admin can open circuit"
+)]
+fn test_emergency_open_circuit_without_circuit_admin_has_clear_panic() {
+    let fx = BootstrapFixture::new();
+    let caller = Address::generate(&fx.env);
+    fx.env.mock_auths(&[MockAuth {
+        address: &caller,
+        invoke: &MockAuthInvoke {
+            contract: &fx.contract_id,
+            fn_name: "emergency_open_circuit",
+            args: (caller.clone(),).into_val(&fx.env),
+            sub_invokes: &[],
+        },
+    }]);
+
+    fx.client.emergency_open_circuit(&caller);
 }
