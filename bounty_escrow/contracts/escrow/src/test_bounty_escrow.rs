@@ -1303,7 +1303,7 @@ fn test_no_policy_set_allows_any_positive_amount() {
 /// with the typed InvalidAmountRange error (issue #467: this previously
 /// used an untyped panic!() instead).
 #[test]
-#[should_panic(expected = "Error(Contract, #28)")] // InvalidAmountRange
+#[should_panic(expected = "Error(Contract, #29)")] // InvalidAmountRange
 fn test_set_amount_policy_min_greater_than_max_rejected() {
     let (env, client, _) = create_test_env();
     let admin = Address::generate(&env);
