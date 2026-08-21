@@ -420,7 +420,7 @@ pub enum Error {
     /// The requested WASM hash has no executed, post-delay governance
     /// proposal approving it (or no governance contract is configured at
     /// all — upgrades fail closed, they are never permitted by default).
-    UpgradeNotApproved = 26,
+    UpgradeNotApproved = 31,
     /// Returned when an arithmetic operation on an analytics accumulator
     /// would overflow `i128` or `u32`.  Appended last to preserve
     /// existing discriminant ordering.
