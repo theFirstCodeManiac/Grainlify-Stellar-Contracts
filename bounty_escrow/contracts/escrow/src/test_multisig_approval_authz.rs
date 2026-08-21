@@ -279,3 +279,161 @@ fn finding_stale_approval_survives_signer_removal() {
     assert!(final_approval.approvals.iter().any(|a| a == signer_a));
     assert!(final_approval.approvals.iter().any(|a| a == signer_b));
 }
+
+// ─────────────────────────────────────────────────────────
+// 5. ApprovalAdded event payload assertion — single approver.
+//
+// Drives the *actual* `approve_large_release` entrypoint and
+// decodes the emitted event, asserting every field matches the
+// inputs. This catches regressions where the event payload
+// silently diverges from the applied state (e.g. logging a stale
+// contributor address or wrong bounty_id).
+// ─────────────────────────────────────────────────────────
+
+#[test]
+fn approval_added_event_payload_matches_inputs() {
+    use events::{ApprovalAdded, EVENT_VERSION_V2};
+    use soroban_sdk::{
+        symbol_short,
+        testutils::{Events as _, Ledger as _},
+        IntoVal, TryFromVal, Val, Vec as SdkVec,
+    };
+
+    let s = TestSetup::new();
+    let bounty_id: u64 = 2_000;
+    s.lock(bounty_id, 50_000);
+
+    let signer = Address::generate(&s.env);
+    s.escrow
+        .update_multisig_config(&1_i128, &vec![&s.env, signer.clone()], &1);
+
+    let ts_before = s.env.ledger().timestamp();
+
+    s.escrow
+        .approve_large_release(&bounty_id, &s.contributor, &signer);
+
+    // Find the ApprovalAdded event by its unique topic ("approval", bounty_id).
+    let expected_topics: SdkVec<Val> =
+        (symbol_short!("approval"), bounty_id).into_val(&s.env);
+
+    let all = s.env.events().all();
+    let mut found = false;
+    for i in 0..all.len() {
+        let (contract_id, topics, data) = all.get(i).unwrap();
+        if contract_id != s.escrow.address {
+            continue;
+        }
+        if topics != expected_topics {
+            continue;
+        }
+
+        let decoded = ApprovalAdded::try_from_val(&s.env, &data)
+            .expect("event data must decode as ApprovalAdded");
+        assert_eq!(decoded.version, EVENT_VERSION_V2, "version mismatch");
+        assert_eq!(decoded.bounty_id, bounty_id, "bounty_id mismatch");
+        assert_eq!(
+            decoded.contributor, s.contributor,
+            "contributor must match the address passed to approve_large_release"
+        );
+        assert_eq!(
+            decoded.approver, signer,
+            "approver must match the signer address"
+        );
+        assert!(
+            decoded.timestamp >= ts_before,
+            "timestamp must be >= ledger timestamp at time of call"
+        );
+        found = true;
+        break;
+    }
+    assert!(found, "ApprovalAdded event was not emitted");
+}
+
+// ─────────────────────────────────────────────────────────
+// 6. Multiple approvers — each emits a distinct ApprovalAdded
+//    event with the correct per-approver payload.
+//
+// Asserts that N sequential `approve_large_release` calls produce
+// exactly N ApprovalAdded events (one per call), with each event's
+// `approver` field reflecting the signer that actually called, not
+// the first signer or the last signer.
+// ─────────────────────────────────────────────────────────
+
+#[test]
+fn multiple_approvers_emit_distinct_approval_added_events() {
+    use events::{ApprovalAdded, EVENT_VERSION_V2};
+    use soroban_sdk::{
+        symbol_short,
+        testutils::Events as _,
+        IntoVal, TryFromVal, Val, Vec as SdkVec,
+    };
+
+    let s = TestSetup::new();
+    let bounty_id: u64 = 3_000;
+    s.lock(bounty_id, 50_000);
+
+    let signer_a = Address::generate(&s.env);
+    let signer_b = Address::generate(&s.env);
+    let signer_c = Address::generate(&s.env);
+
+    s.escrow.update_multisig_config(
+        &1_i128,
+        &vec![&s.env, signer_a.clone(), signer_b.clone(), signer_c.clone()],
+        &3,
+    );
+
+    // Approve sequentially with each signer.
+    s.escrow
+        .approve_large_release(&bounty_id, &s.contributor, &signer_a);
+    s.escrow
+        .approve_large_release(&bounty_id, &s.contributor, &signer_b);
+    s.escrow
+        .approve_large_release(&bounty_id, &s.contributor, &signer_c);
+
+    // Collect all ApprovalAdded events for this bounty.
+    let expected_topics: SdkVec<Val> =
+        (symbol_short!("approval"), bounty_id).into_val(&s.env);
+
+    let all = s.env.events().all();
+    let mut approval_events: soroban_sdk::Vec<ApprovalAdded> = soroban_sdk::Vec::new(&s.env);
+
+    for i in 0..all.len() {
+        let (contract_id, topics, data) = all.get(i).unwrap();
+        if contract_id != s.escrow.address {
+            continue;
+        }
+        if topics != expected_topics {
+            continue;
+        }
+        let decoded = ApprovalAdded::try_from_val(&s.env, &data)
+            .expect("event data must decode as ApprovalAdded");
+        approval_events.push_back(decoded);
+    }
+
+    // Exactly 3 events — one per distinct approver, not batched.
+    assert_eq!(
+        approval_events.len(),
+        3,
+        "expected exactly 3 ApprovalAdded events (one per approver), got {}",
+        approval_events.len()
+    );
+
+    // Assert each event carries the correct per-approver payload.
+    let ev_a = approval_events.get(0).unwrap();
+    assert_eq!(ev_a.version, EVENT_VERSION_V2);
+    assert_eq!(ev_a.bounty_id, bounty_id);
+    assert_eq!(ev_a.contributor, s.contributor);
+    assert_eq!(ev_a.approver, signer_a, "first event must be signer_a");
+
+    let ev_b = approval_events.get(1).unwrap();
+    assert_eq!(ev_b.version, EVENT_VERSION_V2);
+    assert_eq!(ev_b.bounty_id, bounty_id);
+    assert_eq!(ev_b.contributor, s.contributor);
+    assert_eq!(ev_b.approver, signer_b, "second event must be signer_b");
+
+    let ev_c = approval_events.get(2).unwrap();
+    assert_eq!(ev_c.version, EVENT_VERSION_V2);
+    assert_eq!(ev_c.bounty_id, bounty_id);
+    assert_eq!(ev_c.contributor, s.contributor);
+    assert_eq!(ev_c.approver, signer_c, "third event must be signer_c");
+}
